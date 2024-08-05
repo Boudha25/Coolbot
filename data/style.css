@@ -107,3 +107,24 @@ button {
 .button-off:hover {
   background-color: #252524;
 } 
+.button-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.button-minus, .button-plus {
+  background-color: #034078;
+  color: #FEFCFB;
+  border: none;
+  padding: 10px 20px;
+  font-size: 1rem;
+  border-radius: 4px;
+  transition-duration: 0.4s;
+  text-decoration: none;
+}
+
+.button-minus:hover, .button-plus:hover {
+  background-color: #1282A2;
+}

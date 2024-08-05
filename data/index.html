@@ -14,18 +14,38 @@
     <div class="content">
       <div class="card-grid">
         <div class="card">
-          <p class="card-title"><i class="fas fa-thermometer-half"></i> Température Ambiante</p>
-          <p class="temperature">Température: %TEMP_AMBIANTE% °C</p>
+          <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature Ambiante</p>
+          <p class="temperature">Température: %TEMP_AMBIANTE% &deg;C</p>
         </div>
         <div class="card">
-          <p class="card-title"><i class="fas fa-thermometer-half"></i> Température Évaporateur</p>
-          <p class="temperature">Température: %TEMP_EVAPORATEUR% °C</p>
+          <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature &Eacutevaporateur</p>
+          <p class="temperature">Température: %TEMP_EVAPORATEUR% &deg;C</p>
         </div>
         <div class="card">
-          <p class="card-title"><i class="fas fa-thermometer-half"></i> Température de Consigne</p>
-          <p class="temperature">Consigne: %SETPOINT% °C</p>
+          <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature de Consigne</p>
+          <p class="temperature">Consigne: %SETPOINT% &deg;C</p>
+          <div class="button-container">
+            <button class="button-minus" onclick="sendCommand('/setpointMoins')">-</button>
+            <button class="button-plus" onclick="sendCommand('/setpointPlus')">+</button>
+          </div>
         </div>
       </div>
     </div>
+
+    <script>
+      function sendCommand(endpoint) {
+        fetch(endpoint)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            console.log('Command sent successfully:', endpoint);
+            location.reload(); // Recharge la page après le succès de la commande
+          })
+          .catch(error => {
+            console.error('There was a problem with the fetch operation:', error);
+          });
+      }
+    </script>
   </body>
 </html>
