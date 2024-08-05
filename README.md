@@ -31,6 +31,7 @@ Le code utilise les bibliothèques suivantes :
 1. Installez les bibliothèques nécessaires via le gestionnaire de bibliothèques Arduino IDE ou ajoutez-les manuellement à votre répertoire de bibliothèques.
 2. Téléversez le code sur votre ESP8266.
 3. Connectez l'ESP8266 à votre réseau WiFi ou configurez-le en mode point d'accès pour initialiser les paramètres du réseau.
+4. Installer LittleFS dans votre IDE Arduino pour enregistrer les fichiers du dossier /data dans le Nodemcu.  Suivre cette procédure: https://randomnerdtutorials.com/arduino-ide-2-install-esp8266-littlefs/
 
 ## Utilisation
 
