@@ -15,37 +15,55 @@
       <div class="card-grid">
         <div class="card">
           <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature Ambiante</p>
-          <p class="temperature">Température: %TEMP_AMBIANTE% &deg;C</p>
+          <p class="temperature">Temp&eacuterature: <span id="tempAmbiante">--</span> &degC</p>
         </div>
         <div class="card">
           <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature &Eacutevaporateur</p>
-          <p class="temperature">Température: %TEMP_EVAPORATEUR% &deg;C</p>
+          <p class="temperature">Temp&eacuterature: <span id="tempEvaporateur">--</span> &degC</p>
         </div>
         <div class="card">
           <p class="card-title"><i class="fas fa-thermometer-half"></i> Temp&eacuterature de Consigne</p>
-          <p class="temperature">Consigne: %SETPOINT% &deg;C</p>
+          <p class="temperature">Consigne: <span id="setPoint">--</span> &degC</p>
           <div class="button-container">
-            <button class="button-minus" onclick="sendCommand('/setpointMoins')">-</button>
-            <button class="button-plus" onclick="sendCommand('/setpointPlus')">+</button>
+            <button class="button-minus" onclick="changeSetPoint('setpointMoins')">-</button>
+            <button class="button-plus" onclick="changeSetPoint('setpointPlus')">+</button>
           </div>
         </div>
       </div>
     </div>
 
     <script>
-      function sendCommand(endpoint) {
-        fetch(endpoint)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error('Network response was not ok');
-            }
-            console.log('Command sent successfully:', endpoint);
-            location.reload(); // Recharge la page après le succès de la commande
-          })
-          .catch(error => {
-            console.error('There was a problem with the fetch operation:', error);
-          });
+      function fetchData() {
+        fetch('/getTempAmbiante')
+          .then(response => response.text())
+          .then(data => document.getElementById('tempAmbiante').textContent = data);
+
+        fetch('/getTempEvaporateur')
+          .then(response => response.text())
+          .then(data => document.getElementById('tempEvaporateur').textContent = data);
+
+        fetch('/getSetPoint')
+          .then(response => response.text())
+          .then(data => document.getElementById('setPoint').textContent = data);
       }
+
+      function changeSetPoint(action) {
+        fetch('/' + action)
+          .then(response => {
+            if (response.ok) {
+              fetchData();  // Rafraîchir les données après changement
+            } else {
+              console.error('Erreur lors de l\'envoi de la commande.');
+            }
+          })
+          .catch(error => console.error('Problème lors de l\'opération fetch:', error));
+      }
+
+      // Charger les données au démarrage
+      fetchData();
+
+      // Rafraîchir les données toutes les 5 secondes (5000 millisecondes)
+      setInterval(fetchData, 5000);
     </script>
   </body>
 </html>
