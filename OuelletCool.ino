@@ -83,6 +83,11 @@ int buttonModeState = 0; // Variable pour stocker l'état du bouton. // Variable
 int lastButtonModeState = 0; // Pour détecter les changements d'état. // To detect state changes.
 int switchDisplayMode = 0; // Mode d'affichage actuel. // Current display mode.
 
+// Variables pour stocker le dernier temps d'action pour éviter des changements trop rapides de l'état du relais.
+// Variables to store the last action time to avoid rapid changes in the relay state.
+unsigned long previousMillisControlRelay = 0;
+const long intervalControlRelay = 30000; // Intervalle de 30 secondes. // 30-second interval.
+
 // Lire un fichier depuis LittleFS.
 // Read File from LittleFS.
 String readFile(fs::FS& fs, const char* path) {
@@ -486,32 +491,28 @@ void loop() {
       displayIP();
       break;
   }
-   
-// Variables pour stocker le dernier temps d'action pour la fonction controlRelay.
-// Variables to store the last action time for the controlRelay function.
-unsigned long previousMillisControlRelay = 0;
-const long intervalControlRelay = 30000; // Intervalle de 30 secondes. // 30-second interval.
 
-// Contrôler le relais en fonction de la température de l'évaporateur et du point de consigne.
-// Control the relay based on the evaporator temperature and the setpoint.
-unsigned long currentMillisControlRelay = millis();
+  // Contrôler le relais en fonction de la température de l'évaporateur et du point de consigne.
+  // Control the relay based on the evaporator temperature and the setpoint.
+  unsigned long currentMillisControlRelay = millis();
 
-if (roomTemp > setPoint && evapTemp > 0.75) {
-  // Si le relais est éteint et que les conditions sont réunies.
-  // If the relay is off and the conditions are met.
-  if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
-    previousMillisControlRelay = currentMillisControlRelay;
-    digitalWrite(relayPin, HIGH);  // Allumer le chauffage. // Turn on the heating.
-  }
-} else {
-  // Si le relais est allumé et que les conditions ne sont plus réunies.
-  // If the relay is on and the conditions are no longer met.
-  if (digitalRead(relayPin) == HIGH) {
-    if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
-      previousMillisControlRelay = currentMillisControlRelay;
-      digitalWrite(relayPin, LOW);  // Éteindre le chauffage. // Turn off the heating.
+  if (roomTemp > setPoint && evapTemp > 0.75) {
+    // Si le relais est éteint et que les conditions sont réunies.
+    // If the relay is off and the conditions are met.
+    if (digitalRead(relayPin) == LOW) {
+      if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
+        previousMillisControlRelay = currentMillisControlRelay;
+        digitalWrite(relayPin, HIGH);  // Allumer le chauffage. // Turn on the heating.
+      }
+    }
+  } else {
+    // Si le relais est allumé et que les conditions ne sont plus réunies.
+    // If the relay is on and the conditions are no longer met.
+    if (digitalRead(relayPin) == HIGH) {
+      if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
+        previousMillisControlRelay = currentMillisControlRelay;
+        digitalWrite(relayPin, LOW);  // Éteindre le chauffage. // Turn off the heating.
+      }
     }
   }
 }
-}
-
