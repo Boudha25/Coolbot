@@ -17,21 +17,28 @@
 // OLED screen initialization.
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// Le fil de données est connecté à la broche D0 (GPIO16) de l'Arduino.
-// Data wire is connected to pin D0 (GPIO16) on the Arduino.
-#define ONE_WIRE_BUS 16
+// Le fil de données est connecté à la broche D0 (GPIO16) D3 (GPIO0)de l'Arduino.
+// Data wire is connected to pin D0 (GPIO16) D3 (GPIO0) on the Arduino.
+#define ONE_WIRE_BUS_ROOM 16
+#define ONE_WIRE_BUS_EVAP 0
 
 // Configurer une instance OneWire pour communiquer avec tous les dispositifs OneWire.
 // Setup a oneWire instance to communicate with any OneWire devices.
-OneWire oneWire(ONE_WIRE_BUS);
+OneWire oneWireRoom(ONE_WIRE_BUS_ROOM);
+OneWire oneWireEvap(ONE_WIRE_BUS_EVAP);
+
 
 // Passer la référence OneWire à Dallas Temperature.
 // Pass our oneWire reference to Dallas Temperature.
-DallasTemperature sensors(&oneWire);
+DallasTemperature sensorsRoom(&oneWireRoom);
+DallasTemperature sensorsEvap(&oneWireEvap);
 
 // Créer un objet AsyncWebServer sur le port 80.
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
+
+// Crée une variable pour enregistrer la liste des réseau wifi.
+String storedSSIDList;
 
 // Créer des variables globales pour chaque champ de saisie.
 // create global variables for each input field.
@@ -83,11 +90,6 @@ int buttonModeState = 0; // Variable pour stocker l'état du bouton. // Variable
 int lastButtonModeState = 0; // Pour détecter les changements d'état. // To detect state changes.
 int switchDisplayMode = 0; // Mode d'affichage actuel. // Current display mode.
 
-// Variables pour stocker le dernier temps d'action pour éviter des changements trop rapides de l'état du relais.
-// Variables to store the last action time to avoid rapid changes in the relay state.
-unsigned long previousMillisControlRelay = 0;
-const long intervalControlRelay = 30000; // Intervalle de 30 secondes. // 30-second interval.
-
 // Lire un fichier depuis LittleFS.
 // Read File from LittleFS.
 String readFile(fs::FS& fs, const char* path) {
@@ -128,26 +130,34 @@ void writeFile(fs::FS& fs, const char* path, const char* message) {
 // Initialise le WiFi.
 // Initialize WiFi.
 bool initialize_Wifi() {
-  if (ssid == "" || ip == "") {
-    Serial.println("Undefined SSID or IP address.");
+  if (ssid == "") {
+    Serial.println("Undefined SSID.");
     return false;
   }
 
   WiFi.mode(WIFI_STA);
-  localIP.fromString(ip.c_str());
-  localGateway.fromString(gateway.c_str());
 
-  if (!WiFi.config(localIP, localGateway, subnet)) {
-    Serial.println("STA Failed to configure");
-    return false;
+  if (ip != "" && gateway != "") {
+    localIP.fromString(ip.c_str());
+    localGateway.fromString(gateway.c_str());
+
+    if (!WiFi.config(localIP, localGateway, subnet)) {
+      Serial.println("STA Failed to configure");
+      return false;
+    }
+  } else {
+    Serial.println("Using DHCP");
   }
+
   WiFi.begin(ssid.c_str(), pass.c_str());
   Serial.println("Connecting to WiFi...");
   delay(20000);
+
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Failed to connect.");
     return false;
   }
+
   Serial.println(WiFi.localIP());
   return true;
 }
@@ -156,12 +166,12 @@ bool initialize_Wifi() {
 // Replace the placeholder with the actual values from the index.html page.
 String processor(const String& var) {
   if (var == "TEMP_AMBIANTE") {
-    sensors.requestTemperatures();
-    float tempAmbiante = sensors.getTempCByIndex(0);  
+    sensorsRoom.requestTemperatures();
+    float tempAmbiante = sensorsRoom.getTempCByIndex(0);  
     return String(tempAmbiante);
   } else if (var == "TEMP_EVAPORATEUR") {
-    sensors.requestTemperatures();
-    float tempEvaporateur = sensors.getTempCByIndex(1);  
+    sensorsEvap.requestTemperatures();
+    float tempEvaporateur = sensorsEvap.getTempCByIndex(0);  
     return String(tempEvaporateur);
   } else if (var == "SETPOINT") {
     return String(setPoint);  
@@ -228,8 +238,30 @@ void displayTemperature(const char* label, float temperature, int yPosition) {
   display.display();
 }
 
+// Fonction pour scanner les réseaux Wi-Fi et afficher les SSID et RSSI.
+// Function to scan Wi-Fi networks and display SSIDs and RSSI.
+String scanNetworks() {
+  String ssidList = "<select name=\"ssid\" id=\"ssid\">";  // Début de la liste déroulante.
+
+  int numNetworks = WiFi.scanNetworks();
+  
+  if (numNetworks == 0) {
+    ssidList += "<option value=\"\">No WiFi networks found</option>";
+  } else {
+    for (int i = 0; i < numNetworks; ++i) {
+      ssidList += "<option value=\"" + WiFi.SSID(i) + "\">" + WiFi.SSID(i) + " (" + WiFi.RSSI(i) + ")</option>";
+    }
+  }
+  ssidList += "</select>";  // Fin de la liste déroulante.
+  Serial.print(ssidList);
+  return ssidList;  // Retourne la liste formatée en HTML.
+}
+
 void setup() {
   Serial.begin(115200);
+
+// Effectuer le scan Wi-Fi au démarrage
+  storedSSIDList = scanNetworks();
 
 // Mode de fonctionnement des broches.
 // Pin mode configuration.
@@ -238,7 +270,8 @@ void setup() {
   pinMode(buttonDown, INPUT_PULLUP);
   pinMode(buttonMode, INPUT_PULLUP); 
 
-  sensors.begin();
+  sensorsRoom.begin();
+  sensorsEvap.begin();
 
 // Initialisation de LittleFS.
 // Initialization of LittleFS.
@@ -319,9 +352,9 @@ void setup() {
 // Ajouter des routes pour répondre aux requêtes AJAX.
 // Add routes to handle AJAX requests.
 server.on("/getTempAmbiante", HTTP_GET, [](AsyncWebServerRequest *request){
-  sensors.requestTemperatures();
+  sensorsRoom.requestTemperatures();
   delay(10); 
-  float tempAmbiante = sensors.getTempCByIndex(0);
+  float tempAmbiante = sensorsRoom.getTempCByIndex(0);
   if (isnan(tempAmbiante)) {
     Serial.println("Error reading ambient temperature");
     request->send(500, "text/plain", "Error reading ambient temperature");
@@ -332,9 +365,9 @@ server.on("/getTempAmbiante", HTTP_GET, [](AsyncWebServerRequest *request){
 });
 
 server.on("/getTempEvaporateur", HTTP_GET, [](AsyncWebServerRequest *request){
-  sensors.requestTemperatures();
+  sensorsEvap.requestTemperatures();
   delay(10); 
-  float tempEvaporateur = sensors.getTempCByIndex(1);
+  float tempEvaporateur = sensorsEvap.getTempCByIndex(0);
   if (isnan(tempEvaporateur)) {
     Serial.println("Error reading evaporator temperature");
     request->send(500, "text/plain", "Error reading evaporator temperaturer");
@@ -432,6 +465,13 @@ server.on("/setpointMoins", HTTP_GET, [](AsyncWebServerRequest *request) {
       request->send(200, "text/plain", "Success. Ouellet-Cool will now restart. Connect to your router and go to IP address: " + ip);
       delay(10);
     });
+
+  // Route pour obtenir la liste des SSID disponibles.
+  // Route to get the list of available SSIDs.
+    server.on("/getSSIDList", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", storedSSIDList);
+    });
+
     server.begin();
     Serial.println("Server started successfully in AP mode.");
   }
@@ -461,9 +501,10 @@ void loop() {
 
   // Demander les températures aux capteurs.
   // Request temperatures from the sensors.
-  sensors.requestTemperatures();
-  float roomTemp = sensors.getTempCByIndex(0);  // Température ambiante. // Room temperature.
-  float evapTemp = sensors.getTempCByIndex(1);  // Température de l'évaporateur. // Evap temperature.
+  sensorsRoom.requestTemperatures();
+  sensorsEvap.requestTemperatures();
+  float roomTemp = sensorsRoom.getTempCByIndex(0);  // Température ambiante. // Room temperature.
+  float evapTemp = sensorsEvap.getTempCByIndex(0);  // Température de l'évaporateur. // Evap temperature.
 
   switch (switchDisplayMode) {
     case 0:
@@ -491,28 +532,32 @@ void loop() {
       displayIP();
       break;
   }
+   
+// Variables pour stocker le dernier temps d'action pour la fonction controlRelay.
+// Variables to store the last action time for the controlRelay function.
+unsigned long previousMillisControlRelay = 0;
+const long intervalControlRelay = 30000; // Intervalle de 30 secondes. // 30-second interval.
 
-  // Contrôler le relais en fonction de la température de l'évaporateur et du point de consigne.
-  // Control the relay based on the evaporator temperature and the setpoint.
-  unsigned long currentMillisControlRelay = millis();
+// Contrôler le relais en fonction de la température de l'évaporateur et du point de consigne.
+// Control the relay based on the evaporator temperature and the setpoint.
+unsigned long currentMillisControlRelay = millis();
 
-  if (roomTemp > setPoint && evapTemp > 0.75) {
-    // Si le relais est éteint et que les conditions sont réunies.
-    // If the relay is off and the conditions are met.
-    if (digitalRead(relayPin) == LOW) {
-      if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
-        previousMillisControlRelay = currentMillisControlRelay;
-        digitalWrite(relayPin, HIGH);  // Allumer le chauffage. // Turn on the heating.
-      }
-    }
-  } else {
-    // Si le relais est allumé et que les conditions ne sont plus réunies.
-    // If the relay is on and the conditions are no longer met.
-    if (digitalRead(relayPin) == HIGH) {
-      if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
-        previousMillisControlRelay = currentMillisControlRelay;
-        digitalWrite(relayPin, LOW);  // Éteindre le chauffage. // Turn off the heating.
-      }
+if (roomTemp > setPoint && evapTemp > 0.75) {
+  // Si le relais est éteint et que les conditions sont réunies.
+  // If the relay is off and the conditions are met.
+  if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
+    previousMillisControlRelay = currentMillisControlRelay;
+    digitalWrite(relayPin, HIGH);  // Allumer le chauffage. // Turn on the heating.
+  }
+} else {
+  // Si le relais est allumé et que les conditions ne sont plus réunies.
+  // If the relay is on and the conditions are no longer met.
+  if (digitalRead(relayPin) == HIGH) {
+    if (currentMillisControlRelay - previousMillisControlRelay >= intervalControlRelay) {
+      previousMillisControlRelay = currentMillisControlRelay;
+      digitalWrite(relayPin, LOW);  // Éteindre le chauffage. // Turn off the heating.
     }
   }
 }
+}
+
